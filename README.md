@@ -1,3 +1,3 @@
 # 100DataViz Projects
 
-See Issues tab for projects.
+See **Issues** tab for projects.
