@@ -1,0 +1,535 @@
+---
+title: "Unicorn"
+author: "Yudhisteer"
+date: "2022-10-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("collapsibleTree")
+install.packages("webshot")
+```
+
+
+
+```{r setup, include=FALSE}
+library(ggridges)
+library(webshot)
+library(collapsibleTree) 
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(lubridate)
+library(hacksaw)
+library(ggraph)
+library(igraph)
+library(tidyverse)
+```
+
+
+```{r}
+color_palette = c("#DBC8AC", 
+                  "#D58BDD", 
+                  "#ECB390", 
+                  "#9ADCFF", 
+                  "#FF577F", 
+                  "#A64B2A", 
+                  "#4D77FF", 
+                  "#F8B400", 
+                  "#DDDDDD", 
+                  "#005555", 
+                  "#FF7F3F", 
+                  "#7897AB", 
+                  "#B9005B", 
+                  "#80558C", 
+                  "#FFE6AB", 
+                  "#3AB0FF", 
+                  "#D3EBCD")
+
+color_palette_2 = c("#B7C4CF", 
+                  "#FF577F", 
+                  "#B7C4CF", 
+                  "#B7C4CF", 
+                  "#4D77FF", 
+                  "#B7C4CF", 
+                  "#B7C4CF", 
+                  "#B7C4CF", 
+                  "#005555")
+
+```
+
+
+
+
+```{r}
+# IMPORT DATA
+setwd("C://Users//yudhi//OneDrive//Desktop//#100_Data_Viz//Unicorn Startups//Data")
+df = read.csv("clean_df.csv", na.strings = c(""))
+head(df)
+```
+
+```{r Correct Wording}
+df$Industry <- gsub("Artificial intelligence", "Artificial Intelligence", df$Industry)
+df$Industry <- gsub("Internet", "Internet software & services", df$Industry)
+df$Industry <- gsub("Internet software & services software & services", "Internet software & services", df$Industry)
+```
+
+
+
+```{r Separate Year intoYear, Month and Day}
+
+df <- df %>%
+  separate(data=., col=Year, into=c("Year", "Month", "Day"), sep="-")
+```
+
+```{r}
+df$Year <- factor(df$Year)
+df$Month <- factor(df$Month)
+summary(df)
+```
+
+```{r # What is the most famous startup across all countries each year?}
+
+df %>%
+  group_by(Year) %>%
+  count(Industry, sort = TRUE) %>%
+  top_n(1, n) %>%
+  arrange(desc(Year))
+```
+
+```{r # What is the country with the most startups each year?}
+
+df %>%
+  group_by(Year) %>%
+  count(Country, sort = TRUE) %>%
+  top_n(3, n) %>%
+  arrange(desc(Year))
+
+```
+
+```{r # Which country has the most common startups and what is that startup?}
+
+df %>%
+  group_by(Year) %>%
+  count(Country, Industry, sort = TRUE) %>%
+  top_n(1, n) %>%
+  arrange(desc(Year))
+```
+
+
+
+```{r Dataframe of Startups grouped by countries}
+group_country <- df %>%
+  group_by(Year) %>%
+  count(Country)%>%
+  arrange(desc(Year))
+
+#Convert Year to Double for LinePlot
+group_country$Year <- as.numeric(as.character(group_country$Year))
+head(group_country)
+```
+
+```{r Dataframe of Startups grouped by Industries}
+group_Industry <- df %>%
+  group_by(Year) %>%
+  count(Industry)%>%
+  arrange(desc(Year))
+
+#Convert Year to Double for LinePlot
+group_Industry$Year <- as.numeric(as.character(group_Industry$Year))
+head(group_Industry)
+```
+
+
+```{r #Evolution of Industries}
+group_Industry %>% 
+  ggplot(aes(x = Year, y = n, color = Industry)) +
+  geom_line(size=.8, alpha=.5)+
+  geom_point(alpha=.5) +
+  scale_color_manual(values=color_palette)
+```
+
+```{r}
+seq(2007,2010)
+```
+
+
+```{r #Evolution of number of startups by countries}
+
+
+s <- group_country %>% 
+  filter(Country %in% c("United States", "China", "India", "Sweden", "Canada", "Germany", "United Kingdom", "France", "Israel"), Year %in% seq(2012, 2022)) %>%
+  ggplot(aes(x = Year, y = n, color = Country)) +
+  geom_line(size=.8)+
+  geom_point(alpha=.5)+
+  scale_color_manual(values=color_palette_2)
+
+#show Graph
+s
+```
+
+```{r}
+s <- s +
+  ggtitle("Evolution of number of Unicorns per Year")+
+  theme_minimal()+
+  theme(
+  axis.text.y = element_text(color='black',size=12),
+  axis.text.x = element_text(color='black',size=12, angle=0),
+  axis.title.y = element_text(color='black',size=15),
+  axis.title.x  = element_blank(),
+  plot.title =  element_text(hjust=0.5, size = 30),
+  legend.text = element_text(size = 15),
+  legend.title = element_text(size = 20))+
+  ylab("Total") +
+  xlab(" ")
+
+
+#SHOW GRAPH
+s
+
+#DOWNLOAD GRAPH
+png(filename="evolution.png",width=1500, height=800)
+s
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+```{r}
+
+coun_indus <- df %>%
+  filter(Country %in% c("United States", "China", "India", "Sweden", "Canada", "Germany", "United Kingdom", "France", "Israel")) %>%
+  group_by(Country) %>%
+  count(Country, Industry, sort = TRUE) %>%
+  arrange(Country, Industry)
+
+head(coun_indus)
+```
+
+
+```{r}
+filtered_country = c("United States", "China", "India", "Sweden", "Canada", "Germany", "United Kingdom", "France", "Israel")
+
+a <- data.frame(From="Country", To=filtered_country)
+b <- coun_indus %>%
+  select(From=Country, To=Industry)
+c <- rbind(a, b)
+
+# Create a graph object 
+mygraph <- graph_from_data_frame(c)
+
+# Basic tree
+ggraph(mygraph, layout = 'dendrogram') + 
+  geom_edge_diagonal() +
+  geom_node_text(aes( label=name, filter=leaf) , angle=90 , hjust=1, nudge_y = -0.04, size=2) +
+  geom_node_point(aes(filter=leaf) , alpha=0.6) +
+  ylim(-.5, NA)
+```
+
+
+```{r}
+# Represent this tree:
+b$Color <- b$To
+levels(b$Color) <- colorspace::rainbow_hcl(11)
+
+p <- collapsibleTree(b, c("From", "To"),width = 1500, height=1800, root = " ", collapsed = FALSE, 
+                     fontSize = 15, attribute = "To", fill = "Color")
+
+# VIEW GRAPH
+p
+```
+```{r}
+# save the widget
+getwd()
+library(htmlwidgets)
+saveWidget(p, file=paste0(getwd(), "/dendrogram_interactive.html"))
+```
+
+
+```{r}
+q <- ggplot(df, aes(x = Year, fill = Industry)) + 
+  geom_bar(color="Black", size=1, alpha=.5,position = "fill") +
+  scale_fill_manual(values=color_palette)
+
+q
+```
+
+```{r}
+
+q <- q +
+  ggtitle("Proportion of category of startups per year")+
+  theme(
+  axis.text.y = element_text(color='black',size=12),
+  axis.text.x = element_text(color='black',size=12),
+  axis.title.y = element_text(color='black',size=15),
+  plot.title =  element_text(hjust=0.5, size = 30),
+  legend.text = element_text(size = 15),
+  legend.title = element_text(size = 20))+
+  ylab("Proportions") +
+  xlab(" ")
+
+
+#SHOW GRAPH
+q
+
+#DOWNLOAD GRAPH
+png(filename="proportions_year.png",width=1500, height=800)
+q
+dev.off()
+```
+
+
+```{r}
+r <- df %>%
+  filter(Country  %in% c("United States", "China", "India", "Sweden", "Canada", "Germany", "United Kingdom", "France", "Israel")) %>%
+  ggplot(aes(x = Country, fill = Industry)) + 
+  geom_bar(color="Black", size=1, alpha=.5,position = "fill") +
+  scale_fill_manual(values=color_palette)
+
+#Show graph
+r
+
+```
+
+
+```{r}
+
+r <- r +
+  ggtitle("Proportion of category of startups per Country")+
+  theme(
+  axis.text.y = element_text(color='black',size=12),
+  axis.text.x = element_text(color='black',size=12, angle=0),
+  axis.title.y = element_text(color='black',size=15),
+  axis.title.x  = element_blank(),
+  plot.title =  element_text(hjust=0.5, size = 30),
+  legend.text = element_text(size = 15),
+  legend.title = element_text(size = 20))+
+  ylab("Proportions") +
+  xlab(" ")
+
+
+#SHOW GRAPH
+r
+
+#DOWNLOAD GRAPH
+png(filename="proportions_country.png",width=1500, height=800)
+r
+dev.off()
+```
+
+```{r}
+t <- df %>%
+  filter(Country %in% c("United States", "China", "India", "Sweden", "Canada", "Germany", "United Kingdom", "France", "Israel")) %>%
+  group_by(Year, Country) %>%
+  count(Country, Industry, sort = TRUE) %>%
+  arrange(desc(Year), Country, Industry) %>%
+  ggplot(aes(x=Year, y=n, color=Industry))+
+  geom_point(size=3) +
+  scale_color_manual(values=color_palette)+
+  facet_grid(rows = vars(Country), scales = "free")+
+  theme(strip.text.y = element_text(angle = 0))+ 
+  theme(panel.background = element_rect(fill = NA, color = "black"))
+
+t
+```
+
+
+
+
+```{r}
+t <- t +
+  ggtitle(" ")+
+  ylab("Total") +
+  xlab(" ") +
+  theme_bw() +
+  theme(
+  axis.text.y = element_text(color='black',size=12),
+  axis.text.x = element_text(color='black',size=12, angle=0),
+  axis.title.y = element_text(color='black',size=15),
+  axis.title.x  = element_blank(),
+  plot.title =  element_text(hjust=0.5, size = 30),
+  legend.text = element_text(size = 15),
+  legend.title = element_text(size = 20))
+
+
+#SHOW GRAPH
+t
+
+#DOWNLOAD GRAPH
+png(filename="famous.png",width=1500, height=800)
+t
+dev.off()
+```
+
+```{r}
+u <- df %>%
+  filter(Country %in% c("United States", "China", "India", "Sweden", "Canada", "Germany", "United Kingdom", "France", "Israel")) %>%
+  group_by(Year, Country) %>%
+  count(Country, Industry, sort = TRUE) %>%
+  arrange(desc(Year), Country, Industry) %>%
+  ggplot(aes(x=Country, y=n, color=Industry))+
+  geom_point(size=5) +
+  scale_color_manual(values=color_palette)
+
+u
+```
+
+```{r}
+u <- u +
+  ggtitle("Evolution of category of startups per country")+
+  theme_minimal()+
+  theme(
+  axis.text.y = element_text(color='black',size=12),
+  axis.text.x = element_text(color='black',size=12, angle=0),
+  axis.title.y = element_text(color='black',size=15),
+  axis.title.x  = element_blank(),
+  plot.title =  element_text(hjust=0.5, size = 30),
+  legend.text = element_text(size = 15),
+  legend.title = element_text(size = 20))+
+  ylab("Total") +
+  xlab(" ")
+
+
+#SHOW GRAPH
+u
+
+#DOWNLOAD GRAPH
+png(filename="country.png",width=1500, height=800)
+u
+dev.off()
+```
+
+```{r}
+data <- df %>%
+  arrange(desc(Valuation)) %>%
+  mutate(Company=factor(Company, unique(Company)))
+```
+
+
+
+
+```{r}
+v <- data %>%
+  select(Company, Industry, Valuation) %>%
+  top_n(8,Valuation) %>%
+  arrange(desc(Valuation)) %>%
+  mutate(Company = factor(Company, unique(Company))) %>%
+  ggplot( aes(x=Company, y=Valuation)) +
+    geom_segment( aes(xend=Company, yend=0)) +
+    geom_point( size=6, color="red", fill=alpha("orange", 0.3), alpha=1, shape=21, stroke=1) +
+    coord_flip() +
+    ylab(" Valuation in Billions($) ") +
+    xlab(" ") +
+  geom_text(aes(label = Valuation), color = "Black", size = 2.5)+
+  ylim(-1,160)
+v
+```
+
+```{r}
+v + 
+
+  
+  annotate("text", x=grep("SHEIN", data$Company), y=data$Valuation[which(data$Company=="SHEIN")]*1.05, 
+           label=data$Industry[which(data$Company=="SHEIN")], 
+           color="#372948", size=2.5 , angle=0, fontface="bold", hjust=0) +
+  
+    annotate("text", x=grep("SpaceX", data$Company), y=data$Valuation[which(data$Company=="SpaceX")]*1.03, 
+           label=data$Industry[which(data$Company=="SpaceX")], 
+           color="#372948", size=2.5 , angle=0, fontface="bold", hjust=0) +
+  
+      annotate("text", x=grep("ByteDance", data$Company), y=data$Valuation[which(data$Company=="ByteDance")]*1.03, 
+           label=data$Industry[which(data$Company=="ByteDance")], 
+           color="#372948", size=2.5 , angle=0, fontface="bold", hjust=0) +
+  
+        annotate("text", x=grep("Stripe", data$Company), y=data$Valuation[which(data$Company=="Stripe")]*1.05, 
+           label=data$Industry[which(data$Company=="Stripe")], 
+           color="#372948", size=2.5 , angle=0, fontface="bold", hjust=0) +
+  
+        annotate("text", x=grep("Canva", data$Company), y=data$Valuation[which(data$Company=="Canva")]*1.1, 
+           label=data$Industry[which(data$Company=="Canva")], 
+           color="#372948", size=2.5 , angle=0, fontface="bold", hjust=0) +
+  
+          annotate("text", x=grep("Checkout.com", data$Company), y=data$Valuation[which(data$Company=="Checkout.com")]*1.1, 
+           label=data$Industry[which(data$Company=="Checkout.com")], 
+           color="#372948", size=2.5 , angle=0, fontface="bold", hjust=0) +
+  
+          annotate("text", x=grep("Instacart", data$Company), y=data$Valuation[which(data$Company=="Instacart")]*1.1, 
+           label=data$Industry[which(data$Company=="Instacart")], 
+           color="#372948", size=2.5 , angle=0, fontface="bold", hjust=0) +
+
+          annotate("text", x=grep("Databricks", data$Company), y=data$Valuation[which(data$Company=="Databricks")]*1.1, 
+           label=data$Industry[which(data$Company=="Databricks")], 
+           color="#372948", size=2.5 , angle=0, fontface="bold", hjust=0)
+  
+```
+
+
+
+```{r}
+
+#DOWNLOAD GRAPH
+png(filename="strongest.png",width=1500, height=800)
+v
+dev.off()
+
+```
+
+```{r}
+df  %>%
+  filter(Valuation<50)%>%
+  ggplot( aes(y=Industry, x=Valuation, fill=Industry)) +
+    geom_density_ridges()
+```
+
+
+
+
+
+```{r}
+w <- df  %>%
+  filter(Valuation<50)%>%
+  mutate(Industry = fct_reorder(Industry, Valuation)) %>%
+  ggplot( aes(y=Industry, x=Valuation, fill=Industry)) +
+    geom_density_ridges(alpha=0.6, stat="binline", bins=100)+
+ theme(legend.position="none") +
+  scale_fill_manual(values=color_palette)
+
+
+w
+```
+
+```{r}
+w <- w +
+  ggtitle("Distribution of Valuation per Industries")+
+  theme_minimal()+
+  theme(
+  axis.text.y = element_text(color='black',size=12),
+  axis.text.x = element_text(color='black',size=12, angle=0),
+  axis.title.x = element_text(color='black',size=15),
+  axis.title.y  = element_blank(),
+  plot.title =  element_text(hjust=0.5, size = 30))+
+  theme(legend.position="none") +
+  ylab(" ") +
+  xlab(" Valuation in Billions($)  ")
+
+
+#SHOW GRAPH
+w
+
+#DOWNLOAD GRAPH
+png(filename="distribuion.png",width=1500, height=800)
+w
+dev.off()
+```
+```
+
